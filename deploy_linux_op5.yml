@@ -1,0 +1,59 @@
+---
+- hosts: all
+  remote_user: root
+  tasks:
+   - name: Install epel-release
+     yum: state=present name=epel-release
+     when: ansible_distribution == "CentOS"
+
+   - name: install SNMPv3 system updates for centos systems
+     yum: state=present name={{item}}
+     with_items:
+       - net-snmp
+       - net-snmp-utils
+       - net-snmp-libs
+       - snmpcheck
+       - net-snmp-devel
+     when: ansible_distribution == "CentOS"
+
+   - name: install SNMPv3 system updates for ubuntu systems
+     apt: name={{item}} state=installed
+     with_items:
+        - snmp
+        - snmpd
+        - snmp-mibs-downloader
+        - libsnmp-dev
+     when: ansible_distribution == "Ubuntu"
+
+   - name: stop snmpd [CentOS 7 or Ubumtu 16]
+     systemd: state=stopped name=snmpd
+     when: ansible_distribution == "CentOS" and ansible_distribution_major_version =='7' or ansible_distribution == "Ubuntu" and ansible_distribution_major_version == '16'
+      
+   - name: stop snmpd [CentOS 6 or Ubumtu 14]
+     service: state=stopped name=snmpd
+     when: ansible_distribution == "CentOS" and ansible_distribution_major_version =='6' or ansible_distribution == "Ubuntu" and ansible_distribution_major_version == '14'
+     
+   - name: Config SNMPv3 Config
+     shell: "net-snmp-config --create-snmpv3-user -A kryptr0xr0x -X kryptr0xr0x -x AES -a SHA op5"
+      
+#   - name:  configuration  snmpd allow for Ubuntu
+#     blockinfile:
+#       block: "{{ lookup('file', '/root/ansible-script/template/snmpd.conf') }}"
+#       dest: "/etc/snmp/snmpd.conf"
+#       backup: yes
+#     when: ansible_distribution == "Ubuntu"
+   - name: configuration SNMP Disable localhost [Ubuntu]
+     lineinfile: dest=/etc/snmp/snmpd.conf regexp='^agentAddress  udp:127.0.0.1:161' line='#agentAddress  udp:127.0.0.1:161' backup=yes
+     when: ansible_distribution == "Ubuntu"
+
+   - name: configuration SNMP  Allow all [Ubuntu]
+     lineinfile: dest=/etc/snmp/snmpd.conf regexp='^#agentAddress udp:161,udp6:\[::1\]:161' line='agentAddress udp:161,udp6:[::1]:161'
+     when: ansible_distribution == "Ubuntu"
+    
+   - name: start snmpd [CentOS 7 or Ubuntu 16]
+     systemd: state=started name=snmpd  enabled=yes
+     when: ansible_distribution == "CentOS" and ansible_distribution_major_version =='7' or ansible_distribution == "Ubuntu" and ansible_distribution_major_version == '16'
+      
+   - name: stop snmpd [CentOS 6 or Ubuntu 14]
+     service: state=started name=snmpd enabled=yes
+     when: ansible_distribution == "CentOS" and ansible_distribution_major_version =='6' or ansible_distribution == "Ubuntu" and ansible_distribution_major_version == '14'
